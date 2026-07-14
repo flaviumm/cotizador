@@ -8,7 +8,7 @@ import handler from "../api/analyze.js";
 try {
   for (const line of readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\r?\n/)) {
     const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-    if (match && !process.env[match[1]]) process.env[match[1]] = match[2];
+    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");
   }
 } catch { /* sin .env.local: la env tiene que venir de la shell */ }
 

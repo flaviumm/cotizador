@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
-import { Panel, Field, TextInput, Select, Button, Icon } from "./ui.jsx";
+import { Panel, TextInput, Select, Button, Icon } from "./ui.jsx";
 import { matchCatalog } from "../lib/catalogMatch.js";
 
 const MAX_FILES = 4;
 const MAX_PDF_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_EDGE = 1600;
 const AUTO_SELECT_SCORE = 0.5;
+const MAX_TOTAL_BASE64_CHARS = 4 * 1024 * 1024;
 
 function readAsDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -52,12 +53,23 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
   const [rows, setRows] = useState([]);
   const [laborRows, setLaborRows] = useState([]);
   const inputRef = useRef(null);
+  const runIdRef = useRef(0);
 
   async function handleFiles(fileList) {
     setError("");
     try {
       const incoming = await Promise.all([...fileList].map(fileToPayload));
-      setFiles((prev) => [...prev, ...incoming].slice(0, MAX_FILES));
+      let rejected = false;
+      setFiles((prev) => {
+        const combined = [...prev, ...incoming].slice(0, MAX_FILES);
+        const totalChars = combined.reduce((sum, f) => sum + f.dataBase64.length, 0);
+        if (totalChars > MAX_TOTAL_BASE64_CHARS) {
+          rejected = true;
+          return prev;
+        }
+        return combined;
+      });
+      if (rejected) setError("Los archivos superan el tamaño máximo (~3MB en total). Reducí la resolución o dividí el análisis.");
     } catch (err) {
       setError(err.message);
     }
@@ -65,6 +77,7 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
   }
 
   async function analyze() {
+    const runId = ++runIdRef.current;
     setStatus("loading");
     setError("");
     try {
@@ -76,7 +89,13 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
           oficios: laborRates.map((rate) => rate.trade),
         }),
       });
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("El servidor rechazó el pedido (archivos demasiado grandes o servicio no disponible). Probá con archivos más chicos.");
+      }
+      if (runIdRef.current !== runId) return;
       if (!data.ok) throw new Error(data.error || "Error desconocido");
 
       setAnalysis(data.analysis);
@@ -99,6 +118,7 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
       }));
       setStatus("done");
     } catch (err) {
+      if (runIdRef.current !== runId) return;
       setError(err.message);
       setStatus("idle");
     }
@@ -128,6 +148,7 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
   }
 
   function reset() {
+    runIdRef.current += 1;
     setFiles([]); setAnalysis(null); setRows([]); setLaborRows([]); setStatus("idle"); setError("");
   }
 
