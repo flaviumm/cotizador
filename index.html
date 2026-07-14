@@ -4,9 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cotizador Bizon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,300..600,0..1&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: "#ea2e00",
+              "on-primary": "#ffffff",
+              "primary-container": "#ffdad3",
+              surface: "#F0E7D6",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f6f0e4",
+              "surface-container": "#ece2ce",
+              "surface-container-high": "#e2d6bd",
+              "on-surface": "#211a12",
+              "on-surface-variant": "#5c5347",
+              outline: "#d1c7b7",
+              "outline-variant": "#9dbdb8",
+              secondary: "#466460",
+              "secondary-container": "#9dbdb8",
+              "on-secondary-container": "#1c332f",
+              "inverse-surface": "#2a2620",
+              error: "#ba1a1a",
+            },
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+              mono: ["JetBrains Mono", "monospace"],
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body { font-family: "Inter", sans-serif; }
+      .font-mono, .data-mono { font-variant-numeric: tabular-nums; }
+      .material-symbols-outlined {
+        font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 20;
+        line-height: 1;
+        vertical-align: middle;
+      }
+    </style>
   </head>
-  <body class="bg-[#f4f4f2] text-zinc-900">
+  <body class="bg-surface text-on-surface">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
