@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Panel, TextInput, Select, Button, Icon } from "./ui.jsx";
+import { Panel, Field, TextInput, TextArea, Select, Button, Icon } from "./ui.jsx";
 import { matchCatalog } from "../lib/catalogMatch.js";
 
 const MAX_FILES = 4;
@@ -46,6 +46,7 @@ async function fileToPayload(file) {
 
 export default function AnalisisPlanoAI({ materials, laborRates, money, catalogPrice, onAddMaterials, onAddLabor }) {
   const [open, setOpen] = useState(false);
+  const [descripcion, setDescripcion] = useState("");
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | done
   const [error, setError] = useState("");
@@ -87,6 +88,7 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
         body: JSON.stringify({
           files: files.map(({ name, mimeType, dataBase64 }) => ({ name, mimeType, dataBase64 })),
           oficios: laborRates.map((rate) => rate.trade),
+          descripcion: descripcion.trim(),
         }),
       });
       let data;
@@ -149,7 +151,7 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
 
   function reset() {
     runIdRef.current += 1;
-    setFiles([]); setAnalysis(null); setRows([]); setLaborRows([]); setStatus("idle"); setError("");
+    setFiles([]); setDescripcion(""); setAnalysis(null); setRows([]); setLaborRows([]); setStatus("idle"); setError("");
   }
 
   const pendingCount = rows.filter((row) => row.include && row.selectedId).length;
@@ -189,6 +191,15 @@ export default function AnalisisPlanoAI({ materials, laborRates, money, catalogP
               ))}
             </div>
           )}
+
+          <Field label="Descripción de la tarea (opcional)" hint="Orienta el análisis: qué hay que fabricar, alcance, qué incluir o excluir.">
+            <TextArea
+              rows={2}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Ej: Portón corredizo de 4m para galpón. Cotizar solo estructura y colocación, sin pintura."
+            />
+          </Field>
 
           {error && <p className="rounded border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">{error}</p>}
 

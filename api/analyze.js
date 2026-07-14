@@ -3,7 +3,7 @@ import { validateFiles, buildOpenAIPayload } from "./_lib.js";
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método no permitido" });
 
-  const { files, oficios } = req.body || {};
+  const { files, oficios, descripcion } = req.body || {};
   const validation = validateFiles(files);
   if (!validation.ok) return res.status(400).json({ ok: false, error: validation.error });
 
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(buildOpenAIPayload(files, Array.isArray(oficios) ? oficios : [])),
+      body: JSON.stringify(buildOpenAIPayload(files, Array.isArray(oficios) ? oficios : [], typeof descripcion === "string" ? descripcion : "")),
     });
     const data = await response.json();
     if (!response.ok) {

@@ -61,10 +61,14 @@ export const ANALYSIS_SCHEMA = {
   required: ["resumen", "materiales", "manoDeObra", "supuestos", "advertencias"],
 };
 
-function buildPrompt(oficios) {
+function buildPrompt(oficios, descripcion) {
   const oficiosList = oficios.length ? oficios.join(", ") : "Soldador, Electricista, Ayudante";
+  const tarea = descripcion
+    ? `\nIndicación del usuario sobre la tarea (priorizala para definir alcance, qué incluir y qué excluir): "${descripcion}"\n`
+    : "";
   return `Sos un experto en presupuestos de fabricación industrial en Argentina (estructuras metálicas, piping, instalaciones eléctricas y obra civil).
 Analizá los planos o croquis adjuntos (pueden ser PDF, fotos de planos o dibujos a mano alzada) y devolvé:
+${tarea}
 
 - resumen: qué es el trabajo y sus dimensiones principales.
 - materiales: lista con cantidad y unidad (m, kg, unidad, m2, m3, litro). Descripciones técnicas concretas con medidas (ej: "Caño estructural cuadrado 40x40x2mm", "Chapa lisa 3,2mm", "Cable unipolar 2,5mm2").
@@ -81,8 +85,8 @@ Analizá los planos o croquis adjuntos (pueden ser PDF, fotos de planos o dibujo
 Si el plano no tiene cotas, estimá por proporciones y decláralo en advertencias. Si la imagen no parece un plano o croquis, decilo en advertencias y devolvé listas vacías. Respondé en español.`;
 }
 
-export function buildOpenAIPayload(files, oficios) {
-  const content = [{ type: "input_text", text: buildPrompt(oficios) }];
+export function buildOpenAIPayload(files, oficios, descripcion = "") {
+  const content = [{ type: "input_text", text: buildPrompt(oficios, String(descripcion).trim().slice(0, 2000)) }];
   for (const file of files) {
     if (file.mimeType === "application/pdf") {
       content.push({ type: "input_file", filename: file.name || "plano.pdf", file_data: `data:application/pdf;base64,${file.dataBase64}` });

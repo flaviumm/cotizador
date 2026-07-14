@@ -41,6 +41,15 @@ test("payload: PDF va como input_file, imagen como input_image", () => {
   assert.match(content[2].image_url, /^data:image\/png;base64,/);
 });
 
+test("payload: la descripción de la tarea entra al prompt, recortada a 2000 chars", () => {
+  const payload = buildOpenAIPayload([png], [], "Portón corredizo de 4m, sin pintura. " + "x".repeat(3000));
+  const text = payload.input[0].content[0].text;
+  assert.match(text, /Portón corredizo de 4m, sin pintura\./);
+  assert.ok(!text.includes("x".repeat(2001)));
+  const sinDescripcion = buildOpenAIPayload([png], []);
+  assert.ok(!sinDescripcion.input[0].content[0].text.includes("Indicación del usuario"));
+});
+
 test("payload exige salida estructurada estricta", () => {
   const payload = buildOpenAIPayload([png], []);
   assert.equal(payload.text.format.type, "json_schema");
