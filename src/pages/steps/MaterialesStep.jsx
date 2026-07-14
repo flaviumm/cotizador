@@ -4,7 +4,7 @@ import { Panel, Field, TextInput, Select, Button, SectionTitle, Icon } from "../
 export default function MaterialesStep({
   materialProvider, setMaterialProvider, materialQuery, setMaterialQuery, materialQuantity, setMaterialQuantity,
   filteredMaterials, selectedMaterial, selectedMaterialId, setSelectedMaterialId, addMaterialLine, setLightboxImage,
-  money, catalogPrice, providers,
+  money, catalogPrice, providers, aiPanel,
 }) {
   return (
     <div className="space-y-4">
@@ -13,6 +13,7 @@ export default function MaterialesStep({
         title="Materiales del Presupuesto"
         subtitle="Buscá en el catálogo técnico y agregá renglones al detalle de la cotización."
       />
+      {aiPanel}
       <Panel className="p-5">
         <div className="grid gap-3 md:grid-cols-[160px_minmax(0,1fr)_96px_max-content] md:items-end">
           <Field label="Proveedor">

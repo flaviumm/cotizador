@@ -4,6 +4,7 @@ import MaterialesStep from "./steps/MaterialesStep.jsx";
 import JornadasStep from "./steps/JornadasStep.jsx";
 import TrasladoStep, { VEHICLE_TYPES, FUEL_CONSUMPTION_L_PER_100KM } from "./steps/TrasladoStep.jsx";
 import ResumenStep from "./steps/ResumenStep.jsx";
+import AnalisisPlanoAI from "../components/AnalisisPlanoAI.jsx";
 
 // ---------- helpers (extraídos del ERP monolítico) ----------
 function money(value) {
@@ -21,6 +22,62 @@ function quoteLineTotal(line) {
 
 function catalogPrice(item) {
   return Number(item?.basePrice || item?.transferPrice || item?.listPrice || item?.pricePerMeter || 0);
+}
+
+function buildMaterialLine(item, quantity) {
+  const price = catalogPrice(item);
+  const meta = {
+    category: item.category || "",
+    sku: item.sku || "",
+    unit: item.unit || "",
+    provider: item.provider || "",
+    source: item.source || "",
+    spec: item.spec || "",
+    espesorMm: item.espesorMm ?? null,
+    largoM: item.largoM ?? null,
+  };
+  const medidasLabel = [
+    meta.spec,
+    meta.espesorMm != null ? `Esp: ${meta.espesorMm} mm` : "",
+    meta.largoM != null ? `Largo: ${meta.largoM} m` : "",
+  ].filter(Boolean).join(" · ");
+  const detail = [
+    item.name,
+    medidasLabel,
+    meta.unit ? `Unidad: ${meta.unit}` : "",
+    meta.provider ? `Proveedor: ${meta.provider}` : "",
+    meta.sku ? `SKU: ${meta.sku}` : "",
+    `Precio base: ${money(price)}`,
+  ].filter(Boolean).join(" - ");
+  return {
+    id: `mat-${item.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type: "material",
+    detail,
+    quantity: Number(quantity || 1),
+    unitPrice: price,
+    sourceId: item.id,
+    meta,
+  };
+}
+
+function buildLaborLine(rate, hours, description) {
+  const meta = {
+    category: rate.category || "",
+    agreement: rate.agreement || "",
+    unit: "hora",
+    provider: "Mano de obra Bizon",
+    source: "Tarifario interno",
+  };
+  const detail = String(description || "").trim() || `${rate.trade} - ${rate.category} - ${rate.agreement}`;
+  return {
+    id: `labor-${rate.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type: "labor",
+    detail,
+    quantity: Number(hours || 1),
+    unitPrice: Number(rate.quoteHour || 0),
+    sourceId: rate.id,
+    meta,
+  };
 }
 
 function normalizeText(value) {
@@ -347,65 +404,27 @@ const Cotizador = forwardRef(function Cotizador(
 
   function addMaterialLine() {
     if (!selectedMaterial) return;
-    const price = catalogPrice(selectedMaterial);
-    const meta = {
-      category: selectedMaterial.category || "",
-      sku: selectedMaterial.sku || "",
-      unit: selectedMaterial.unit || "",
-      provider: selectedMaterial.provider || "",
-      source: selectedMaterial.source || "",
-      spec: selectedMaterial.spec || "",
-      espesorMm: selectedMaterial.espesorMm ?? null,
-      largoM: selectedMaterial.largoM ?? null,
-    };
-    const medidasLabel = [
-      meta.spec,
-      meta.espesorMm != null ? `Esp: ${meta.espesorMm} mm` : "",
-      meta.largoM != null ? `Largo: ${meta.largoM} m` : "",
-    ].filter(Boolean).join(" · ");
-    const detail = [
-      selectedMaterial.name,
-      medidasLabel,
-      meta.unit ? `Unidad: ${meta.unit}` : "",
-      meta.provider ? `Proveedor: ${meta.provider}` : "",
-      meta.sku ? `SKU: ${meta.sku}` : "",
-      `Precio base: ${money(price)}`,
-    ].filter(Boolean).join(" - ");
-
     setGeneratedQuote(null);
-    setLineItems((items) => [...items, {
-      id: `mat-${selectedMaterial.id}-${Date.now()}`,
-      type: "material",
-      detail,
-      quantity: Number(materialQuantity || 1),
-      unitPrice: price,
-      sourceId: selectedMaterial.id,
-      meta,
-    }]);
+    setLineItems((items) => [...items, buildMaterialLine(selectedMaterial, materialQuantity)]);
   }
 
   function addLaborLine() {
     if (!selectedLabor) return;
-    const meta = {
-      category: selectedLabor.category || "",
-      agreement: selectedLabor.agreement || "",
-      unit: "hora",
-      provider: "Mano de obra Bizon",
-      source: "Tarifario interno",
-    };
-    const detail = laborDescription.trim() || `${selectedLabor.trade} - ${selectedLabor.category} - ${selectedLabor.agreement}`;
-
     setGeneratedQuote(null);
-    setLineItems((items) => [...items, {
-      id: `labor-${selectedLabor.id}-${Date.now()}`,
-      type: "labor",
-      detail,
-      quantity: Number(laborHours || 1),
-      unitPrice: Number(selectedLabor.quoteHour || 0),
-      sourceId: selectedLabor.id,
-      meta,
-    }]);
+    setLineItems((items) => [...items, buildLaborLine(selectedLabor, laborHours, laborDescription)]);
     setLaborDescription("");
+  }
+
+  function addAiMaterials(selections) {
+    if (!selections?.length) return;
+    setGeneratedQuote(null);
+    setLineItems((items) => [...items, ...selections.map(({ item, quantity }) => buildMaterialLine(item, quantity))]);
+  }
+
+  function addAiLabor({ rate, horas, justificacion }) {
+    if (!rate) return;
+    setGeneratedQuote(null);
+    setLineItems((items) => [...items, buildLaborLine(rate, horas, justificacion)]);
   }
 
   function ensureTravelSection(items) {
@@ -555,6 +574,16 @@ const Cotizador = forwardRef(function Cotizador(
         selectedMaterialId={selectedMaterialId} setSelectedMaterialId={setSelectedMaterialId}
         addMaterialLine={addMaterialLine} setLightboxImage={setLightboxImage}
         money={money} catalogPrice={catalogPrice} providers={providers}
+        aiPanel={
+          <AnalisisPlanoAI
+            materials={materials}
+            laborRates={laborRates}
+            money={money}
+            catalogPrice={catalogPrice}
+            onAddMaterials={addAiMaterials}
+            onAddLabor={addAiLabor}
+          />
+        }
       />
     );
   }
