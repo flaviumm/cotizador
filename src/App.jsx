@@ -25,23 +25,51 @@ function nextLocalNumber(items, prefix, padding = 4) {
   return `${prefix}-${String(max + 1).padStart(padding, "0")}`;
 }
 
-// El catálogo cacheado en localStorage puede quedar viejo si pricingData.js
-// se actualiza (ej. se agregan fotos). Se reconcilia por id para no perder
-// ediciones manuales del usuario, sólo rellena campos ausentes en el caché.
-function reconcileMaterials(cached, fresh) {
-  if (!cached) return fresh;
-  const freshById = new Map(fresh.map((item) => [item.id, item]));
-  return cached.map((item) => {
-    const freshItem = freshById.get(item.id);
-    if (!freshItem || (item.imagen && item.imagen === freshItem.imagen)) return item;
-    return freshItem.imagen && !item.imagen ? { ...item, imagen: freshItem.imagen } : item;
-  });
+// localStorage puede fallar (quota: Safari corta en 5MB y el catálogo completo
+// pesa ~9MB serializado). Un throw dentro de un useEffect desmonta toda la app,
+// así que la persistencia nunca debe ser fatal.
+function saveLocal(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Sin espacio: la app sigue funcionando desde pricingData.js en memoria.
+  }
+}
+
+// El catálogo completo no entra en localStorage en todos los navegadores, así
+// que se persiste sólo el diff contra pricingData.js: ítems agregados, editados
+// y borrados. Normalmente son pocos bytes.
+function materialsDiff(materials) {
+  const defaultById = new Map(defaultMaterials.map((item) => [item.id, JSON.stringify(item)]));
+  const currentIds = new Set();
+  const changed = [];
+  for (const item of materials) {
+    currentIds.add(item.id);
+    const original = defaultById.get(item.id);
+    if (!original) changed.push(item); // agregado manualmente
+    else if (original !== JSON.stringify(item)) changed.push(item); // editado
+  }
+  const removedIds = defaultMaterials.filter((item) => !currentIds.has(item.id)).map((item) => item.id);
+  return { changed, removedIds };
+}
+
+function applyMaterialsDiff(diff) {
+  if (!diff || (!diff.changed?.length && !diff.removedIds?.length)) return defaultMaterials;
+  const removed = new Set(diff.removedIds || []);
+  const changedById = new Map((diff.changed || []).map((item) => [item.id, item]));
+  const base = defaultMaterials.filter((item) => !removed.has(item.id)).map((item) => changedById.get(item.id) || item);
+  const baseIds = new Set(base.map((item) => item.id));
+  const added = (diff.changed || []).filter((item) => !baseIds.has(item.id));
+  return [...base, ...added];
 }
 
 export default function App() {
   const [companies, setCompanies] = useState(() => loadLocal("cotizador.companies", []));
   const [quotes, setQuotes] = useState(() => loadLocal("cotizador.quotes", []));
-  const [materials, setMaterials] = useState(() => reconcileMaterials(loadLocal("cotizador.materials", null), defaultMaterials));
+  const [materials, setMaterials] = useState(() => {
+    try { localStorage.removeItem("cotizador.materials"); } catch {} // caché legado de ~9MB; libera quota
+    return applyMaterialsDiff(loadLocal("cotizador.materialsDiff", null));
+  });
   const [laborRates, setLaborRates] = useState(() => loadLocal("cotizador.laborRates", defaultLaborRates));
   const [quoteParameters, setQuoteParameters] = useState(() => loadLocal("cotizador.quoteParameters", defaultQuoteParameters));
 
@@ -51,11 +79,11 @@ export default function App() {
   const [lightboxImage, setLightboxImage] = useState(null);
   const cotizadorRef = useRef(null);
 
-  useEffect(() => { localStorage.setItem("cotizador.companies", JSON.stringify(companies)); }, [companies]);
-  useEffect(() => { localStorage.setItem("cotizador.quotes", JSON.stringify(quotes)); }, [quotes]);
-  useEffect(() => { localStorage.setItem("cotizador.materials", JSON.stringify(materials)); }, [materials]);
-  useEffect(() => { localStorage.setItem("cotizador.laborRates", JSON.stringify(laborRates)); }, [laborRates]);
-  useEffect(() => { localStorage.setItem("cotizador.quoteParameters", JSON.stringify(quoteParameters)); }, [quoteParameters]);
+  useEffect(() => { saveLocal("cotizador.companies", companies); }, [companies]);
+  useEffect(() => { saveLocal("cotizador.quotes", quotes); }, [quotes]);
+  useEffect(() => { saveLocal("cotizador.materialsDiff", materialsDiff(materials)); }, [materials]);
+  useEffect(() => { saveLocal("cotizador.laborRates", laborRates); }, [laborRates]);
+  useEffect(() => { saveLocal("cotizador.quoteParameters", quoteParameters); }, [quoteParameters]);
 
   // El estado ya se persiste por efecto; persistRecord solo cumple el contrato async del componente.
   const persistRecord = async () => {};
