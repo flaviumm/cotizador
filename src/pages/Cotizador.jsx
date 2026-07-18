@@ -1,10 +1,11 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import DatosEmpresaStep from "./steps/DatosEmpresaStep.jsx";
 import MaterialesStep from "./steps/MaterialesStep.jsx";
 import JornadasStep from "./steps/JornadasStep.jsx";
 import TrasladoStep, { VEHICLE_TYPES, FUEL_CONSUMPTION_L_PER_100KM } from "./steps/TrasladoStep.jsx";
 import ResumenStep from "./steps/ResumenStep.jsx";
 import AnalisisPlanoAI from "../components/AnalisisPlanoAI.jsx";
+import { MATERIAL_GROUPS, materialGroup, resolveMaterialCategory, materialCategoryLabel } from "../lib/materialGroups.js";
 
 // ---------- helpers (extraídos del ERP monolítico) ----------
 function money(value) {
@@ -331,6 +332,11 @@ const Cotizador = forwardRef(function Cotizador(
   const [lineItems, setLineItems] = useState([]);
   const [materialQuery, setMaterialQuery] = useState("");
   const [materialProvider, setMaterialProvider] = useState("");
+  const [materialGroupFilter, setMaterialGroupFilter] = useState("");
+  const [materialCategory, setMaterialCategory] = useState("");
+  const [materialMedida, setMaterialMedida] = useState("");
+  const [materialEspesor, setMaterialEspesor] = useState("");
+  const [materialFeedback, setMaterialFeedback] = useState(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialQuantity, setMaterialQuantity] = useState(1);
   const [jobTitle, setJobTitle] = useState("");
@@ -348,10 +354,86 @@ const Cotizador = forwardRef(function Cotizador(
   const [travelConceptDraft, setTravelConceptDraft] = useState({ detail: "", unit: "Unidad", quantity: 1, unitPrice: 0 });
 
   const providers = [...new Set(materials.map((item) => item.provider).filter(Boolean))];
-  const filteredMaterials = materialQuery.trim().length < 2 ? [] : materials
-    .filter((item) => (!materialProvider || item.provider === materialProvider) &&
-      `${item.name} ${item.category} ${item.spec} ${item.provider} ${item.sku} ${item.brand}`.toLowerCase().includes(materialQuery.toLowerCase()))
-    .slice(0, 60);
+
+  const materialAlternates = useMemo(() => {
+    const byName = new Map();
+    for (const item of materials) {
+      const key = (item.name || "").trim().toUpperCase();
+      if (!key) continue;
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key).push(item);
+    }
+    const result = new Map();
+    for (const [key, items] of byName) {
+      if (items.length > 1) result.set(key, items);
+    }
+    return result;
+  }, [materials]);
+
+  const materialGroups = useMemo(() => {
+    const counts = new Map();
+    for (const item of materials) {
+      const g = materialGroup(item);
+      counts.set(g, (counts.get(g) || 0) + 1);
+    }
+    return MATERIAL_GROUPS.filter((g) => counts.has(g)).map((g) => ({ name: g, count: counts.get(g) }));
+  }, [materials]);
+
+  const materialsInGroup = useMemo(() => {
+    if (!materialGroupFilter) return [];
+    return materials.filter((item) =>
+      materialGroup(item) === materialGroupFilter &&
+      (!materialProvider || item.provider === materialProvider));
+  }, [materials, materialGroupFilter, materialProvider]);
+
+  const materialCategories = useMemo(() => {
+    if (materialGroupFilter === "Sin clasificar") return [];
+    const counts = new Map();
+    for (const item of materialsInGroup) {
+      const key = resolveMaterialCategory(item);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, label: materialCategoryLabel(value), count }));
+  }, [materialsInGroup, materialGroupFilter]);
+
+  const materialsInCategory = useMemo(() => {
+    if (!materialCategory) return materialsInGroup;
+    return materialsInGroup.filter((item) => resolveMaterialCategory(item) === materialCategory);
+  }, [materialsInGroup, materialCategory]);
+
+  const materialMedidas = useMemo(() => {
+    const set = new Set();
+    for (const item of materialsInCategory) {
+      const medida = (item.spec || item.medidas || "").trim();
+      if (medida) set.add(medida);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+  }, [materialsInCategory]);
+
+  const materialEspesores = useMemo(() => {
+    const base = materialMedida
+      ? materialsInCategory.filter((item) => (item.spec || item.medidas || "").trim() === materialMedida)
+      : materialsInCategory;
+    const set = new Set();
+    for (const item of base) {
+      if (item.espesorMm != null) set.add(Number(item.espesorMm));
+    }
+    return [...set].sort((a, b) => a - b);
+  }, [materialsInCategory, materialMedida]);
+
+  const filteredMaterials = useMemo(() => {
+    const q = materialQuery.trim().toLowerCase();
+    if (!materialGroupFilter && q.length < 2) return [];
+    let list = materials;
+    if (materialProvider) list = list.filter((item) => item.provider === materialProvider);
+    if (materialGroupFilter) list = list.filter((item) => materialGroup(item) === materialGroupFilter);
+    if (materialCategory) list = list.filter((item) => resolveMaterialCategory(item) === materialCategory);
+    if (materialMedida) list = list.filter((item) => (item.spec || item.medidas || "").trim() === materialMedida);
+    if (materialEspesor !== "") list = list.filter((item) => Number(item.espesorMm) === Number(materialEspesor));
+    if (q) list = list.filter((item) => `${item.name} ${item.category} ${item.spec} ${item.provider} ${item.sku} ${item.brand}`.toLowerCase().includes(q));
+    return list.slice(0, 200);
+  }, [materials, materialProvider, materialGroupFilter, materialCategory, materialMedida, materialEspesor, materialQuery]);
+
   const selectedMaterial = materials.find((item) => item.id === selectedMaterialId) || null;
   const selectedLabor = laborRates.find((item) => item.id === selectedLaborId) || null;
 
@@ -373,6 +455,33 @@ const Cotizador = forwardRef(function Cotizador(
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companies, selectedCompany]);
+
+  useEffect(() => {
+    if (!materialFeedback) return;
+    const timer = setTimeout(() => setMaterialFeedback(null), 3000);
+    return () => clearTimeout(timer);
+  }, [materialFeedback]);
+
+  function selectMaterialGroup(value) {
+    setMaterialGroupFilter(value);
+    setMaterialCategory("");
+    setMaterialMedida("");
+    setMaterialEspesor("");
+    setSelectedMaterialId("");
+  }
+
+  function selectMaterialCategory(value) {
+    setMaterialCategory(value);
+    setMaterialMedida("");
+    setMaterialEspesor("");
+    setSelectedMaterialId("");
+  }
+
+  function selectMaterialMedida(value) {
+    setMaterialMedida(value);
+    setMaterialEspesor("");
+    setSelectedMaterialId("");
+  }
 
   function updateClientFromCompany(name) {
     const company = companies.find((item) => item.name === name);
@@ -404,8 +513,15 @@ const Cotizador = forwardRef(function Cotizador(
 
   function addMaterialLine() {
     if (!selectedMaterial) return;
+    const outOfStock = selectedMaterial.stockDisponible === false ||
+      (selectedMaterial.stockDisponible == null && selectedMaterial.stock != null && Number(selectedMaterial.stock) <= 0);
+    if (outOfStock) {
+      setMaterialFeedback({ type: "error", message: `Sin stock: no se puede agregar "${selectedMaterial.name}".` });
+      return;
+    }
     setGeneratedQuote(null);
     setLineItems((items) => [...items, buildMaterialLine(selectedMaterial, materialQuantity)]);
+    setMaterialFeedback({ type: "success", message: `"${selectedMaterial.name}" se agregó al presupuesto.` });
   }
 
   function addLaborLine() {
@@ -568,11 +684,16 @@ const Cotizador = forwardRef(function Cotizador(
     return (
       <MaterialesStep
         materialProvider={materialProvider} setMaterialProvider={setMaterialProvider}
+        materialGroupFilter={materialGroupFilter} onGroupChange={selectMaterialGroup} materialGroups={materialGroups}
+        materialCategory={materialCategory} onCategoryChange={selectMaterialCategory} materialCategories={materialCategories}
+        materialMedida={materialMedida} onMedidaChange={selectMaterialMedida} materialMedidas={materialMedidas}
+        materialEspesor={materialEspesor} setMaterialEspesor={setMaterialEspesor} materialEspesores={materialEspesores}
         materialQuery={materialQuery} setMaterialQuery={setMaterialQuery}
         materialQuantity={materialQuantity} setMaterialQuantity={setMaterialQuantity}
         filteredMaterials={filteredMaterials} selectedMaterial={selectedMaterial}
         selectedMaterialId={selectedMaterialId} setSelectedMaterialId={setSelectedMaterialId}
         addMaterialLine={addMaterialLine} setLightboxImage={setLightboxImage}
+        materialFeedback={materialFeedback} materialAlternates={materialAlternates}
         money={money} catalogPrice={catalogPrice} providers={providers}
         aiPanel={
           <AnalisisPlanoAI
@@ -632,6 +753,7 @@ const Cotizador = forwardRef(function Cotizador(
       jobTitle={jobTitle} setJobTitle={setJobTitle}
       validUntil={validUntil} setValidUntil={setValidUntil}
       money={money} subtotalMaterials={subtotalMaterials} subtotalLabor={subtotalLabor} subtotalTravel={subtotalTravel} total={total}
+      onSaveDraft={() => saveQuote({ openPdf: false })} saving={saving} generatedQuote={generatedQuote}
     />
   );
 });

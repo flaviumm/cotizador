@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Panel, Field, TextInput, Select, Button, IconButton, Badge, StatCard, SectionTitle } from "../components/ui.jsx";
+import { MATERIAL_GROUPS, materialGroup, resolveMaterialCategory, materialCategoryLabel } from "../lib/materialGroups.js";
 
 const PAGE_SIZE = 12;
 const money = (value) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -37,6 +38,8 @@ function MaterialForm({ draft, setDraft, onCancel, onSave, title }) {
 export default function Materiales({ materials, setMaterials }) {
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
   const [addDraft, setAddDraft] = useState(emptyDraft);
@@ -45,13 +48,35 @@ export default function Materiales({ materials, setMaterials }) {
 
   const providers = useMemo(() => [...new Set(materials.map((m) => m.provider).filter(Boolean))].sort(), [materials]);
 
+  const groups = useMemo(() => {
+    const counts = new Map();
+    for (const item of materials) {
+      const g = materialGroup(item);
+      counts.set(g, (counts.get(g) || 0) + 1);
+    }
+    return MATERIAL_GROUPS.filter((g) => counts.has(g)).map((g) => ({ name: g, count: counts.get(g) }));
+  }, [materials]);
+
+  const categories = useMemo(() => {
+    if (groupFilter === "Sin clasificar") return [];
+    const counts = new Map();
+    for (const item of materials) {
+      if (groupFilter && materialGroup(item) !== groupFilter) continue;
+      const key = resolveMaterialCategory(item);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, label: materialCategoryLabel(value), count }));
+  }, [materials, groupFilter]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return materials.filter((item) =>
       (!providerFilter || item.provider === providerFilter) &&
+      (!groupFilter || materialGroup(item) === groupFilter) &&
+      (!categoryFilter || resolveMaterialCategory(item) === categoryFilter) &&
       (!q || `${item.name} ${item.category} ${item.sku} ${item.brand}`.toLowerCase().includes(q))
     );
-  }, [materials, query, providerFilter]);
+  }, [materials, query, providerFilter, groupFilter, categoryFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -121,8 +146,22 @@ export default function Materiales({ materials, setMaterials }) {
       </div>
 
       <Panel title="Filtros" icon="filter_alt" className="p-5">
-        <div className="grid gap-3 pt-2 sm:grid-cols-[1fr_220px]">
+        <div className="grid gap-3 pt-2 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Buscar material"><TextInput value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Nombre, categoría, SKU, marca…" /></Field>
+          <Field label="Grupo">
+            <Select value={groupFilter} onChange={(e) => { setGroupFilter(e.target.value); setCategoryFilter(""); setPage(1); }}>
+              <option value="">Todos</option>
+              {groups.map((g) => <option key={g.name} value={g.name}>{g.name} ({g.count})</option>)}
+            </Select>
+          </Field>
+          {categories.length > 0 && (
+            <Field label="Categoría">
+              <Select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
+                <option value="">Todas</option>
+                {categories.map((c) => <option key={c.value} value={c.value}>{c.label} ({c.count})</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Proveedor">
             <Select value={providerFilter} onChange={(e) => { setProviderFilter(e.target.value); setPage(1); }}>
               <option value="">Todos</option>

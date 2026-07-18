@@ -25,14 +25,28 @@ function nextLocalNumber(items, prefix, padding = 4) {
   return `${prefix}-${String(max + 1).padStart(padding, "0")}`;
 }
 
+// El catálogo cacheado en localStorage puede quedar viejo si pricingData.js
+// se actualiza (ej. se agregan fotos). Se reconcilia por id para no perder
+// ediciones manuales del usuario, sólo rellena campos ausentes en el caché.
+function reconcileMaterials(cached, fresh) {
+  if (!cached) return fresh;
+  const freshById = new Map(fresh.map((item) => [item.id, item]));
+  return cached.map((item) => {
+    const freshItem = freshById.get(item.id);
+    if (!freshItem || (item.imagen && item.imagen === freshItem.imagen)) return item;
+    return freshItem.imagen && !item.imagen ? { ...item, imagen: freshItem.imagen } : item;
+  });
+}
+
 export default function App() {
   const [companies, setCompanies] = useState(() => loadLocal("cotizador.companies", []));
   const [quotes, setQuotes] = useState(() => loadLocal("cotizador.quotes", []));
-  const [materials, setMaterials] = useState(() => loadLocal("cotizador.materials", defaultMaterials));
+  const [materials, setMaterials] = useState(() => reconcileMaterials(loadLocal("cotizador.materials", null), defaultMaterials));
   const [laborRates, setLaborRates] = useState(() => loadLocal("cotizador.laborRates", defaultLaborRates));
   const [quoteParameters, setQuoteParameters] = useState(() => loadLocal("cotizador.quoteParameters", defaultQuoteParameters));
 
   const [activeSection, setActiveSection] = useState("presupuestos");
+  const [configTab, setConfigTab] = useState("materiales");
   const [quoteStep, setQuoteStep] = useState("datosEmpresa");
   const [lightboxImage, setLightboxImage] = useState(null);
   const cotizadorRef = useRef(null);
@@ -50,16 +64,17 @@ export default function App() {
   return (
     <AppShell
       activeSection={activeSection}
-      onNavigate={setActiveSection}
+      configTab={configTab}
+      onConfigTab={(tab) => { setConfigTab(tab); setActiveSection("configuracion"); }}
       quoteStep={quoteStep}
-      onQuoteStep={setQuoteStep}
+      onQuoteStep={(step) => { setQuoteStep(step); setActiveSection("presupuestos"); }}
       quoteNumber="Nuevo presupuesto"
       quoteStatus="En borrador"
       onGeneratePdf={() => cotizadorRef.current?.generatePdf()}
     >
-      {activeSection === "materiales" && <Materiales materials={materials} setMaterials={setMaterials} />}
-      {activeSection === "manodeobra" && <ManoDeObra laborRates={laborRates} setLaborRates={setLaborRates} />}
-      {activeSection === "configuracion" && <Configuracion quoteParameters={quoteParameters} setQuoteParameters={setQuoteParameters} />}
+      {activeSection === "configuracion" && configTab === "materiales" && <Materiales materials={materials} setMaterials={setMaterials} />}
+      {activeSection === "configuracion" && configTab === "manodeobra" && <ManoDeObra laborRates={laborRates} setLaborRates={setLaborRates} />}
+      {activeSection === "configuracion" && configTab === "general" && <Configuracion quoteParameters={quoteParameters} setQuoteParameters={setQuoteParameters} />}
       <div style={{ display: activeSection === "presupuestos" ? "block" : "none" }}>
         <Cotizador
           ref={cotizadorRef}

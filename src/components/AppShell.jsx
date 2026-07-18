@@ -1,13 +1,6 @@
 import React from "react";
 import { Icon } from "./ui.jsx";
 
-const TOP_NAV = [
-  { key: "presupuestos", label: "Presupuestos" },
-  { key: "materiales", label: "Materiales" },
-  { key: "manodeobra", label: "Mano de Obra" },
-  { key: "configuracion", label: "Configuración" },
-];
-
 const QUOTE_STEPS = [
   { key: "datosEmpresa", label: "Datos Empresa", icon: "business" },
   { key: "materiales", label: "Materiales", icon: "inventory_2" },
@@ -16,28 +9,17 @@ const QUOTE_STEPS = [
   { key: "resumen", label: "Resumen", icon: "analytics" },
 ];
 
-export default function AppShell({ activeSection, onNavigate, quoteNumber, quoteStatus, quoteStep, onQuoteStep, onGeneratePdf, children }) {
+const CONFIG_ITEMS = [
+  { key: "materiales", label: "Materiales", icon: "inventory_2" },
+  { key: "manodeobra", label: "Mano de Obra", icon: "engineering" },
+  { key: "general", label: "General", icon: "tune" },
+];
+
+export default function AppShell({ activeSection, configTab, onQuoteStep, quoteStep, onConfigTab, quoteNumber, quoteStatus, onGeneratePdf, children }) {
   return (
     <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-outline bg-surface-container-lowest px-6 md:px-8">
-        <div className="flex items-center gap-8">
-          <span className="text-lg font-bold text-primary">Cotizador Bizon</span>
-          <nav className="hidden gap-6 md:flex">
-            {TOP_NAV.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => onNavigate(item.key)}
-                className={`pb-1 text-sm font-semibold transition-colors ${
-                  activeSection === item.key
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-on-surface-variant hover:text-primary"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </div>
+      <header className="sticky top-0 z-50 flex h-16 items-center border-b border-outline bg-surface-container-lowest px-6 md:px-8">
+        <span className="text-lg font-bold text-primary">Cotizador</span>
       </header>
 
       <div className="flex">
@@ -51,16 +33,13 @@ export default function AppShell({ activeSection, onNavigate, quoteNumber, quote
               <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Estado: {quoteStatus}</p>
             </div>
           </div>
-          <nav className="flex flex-1 flex-col gap-1">
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
             {QUOTE_STEPS.map((step) => {
               const isActive = activeSection === "presupuestos" && quoteStep === step.key;
               return (
                 <button
                   key={step.key}
-                  onClick={() => {
-                    onQuoteStep(step.key);
-                    onNavigate("presupuestos");
-                  }}
+                  onClick={() => onQuoteStep(step.key)}
                   className={`flex items-center gap-3 rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition-all active:scale-[0.98] ${
                     isActive ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
                   }`}
@@ -70,6 +49,25 @@ export default function AppShell({ activeSection, onNavigate, quoteNumber, quote
                 </button>
               );
             })}
+
+            <div className="mt-4 border-t border-outline pt-4">
+              <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Configuración</p>
+              {CONFIG_ITEMS.map((item) => {
+                const isActive = activeSection === "configuracion" && configTab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => onConfigTab(item.key)}
+                    className={`flex items-center gap-3 rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition-all active:scale-[0.98] ${
+                      isActive ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
+                    }`}
+                  >
+                    <Icon name={item.icon} className="text-[18px]" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </nav>
           <button
             onClick={onGeneratePdf}

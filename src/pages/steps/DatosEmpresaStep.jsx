@@ -1,13 +1,21 @@
 import React from "react";
-import { Panel, Field, TextInput, Select, Icon } from "../../components/ui.jsx";
+import { Panel, Field, TextInput, Select, Icon, Button } from "../../components/ui.jsx";
 
-export default function DatosEmpresaStep({ companies, clientMode, setClientMode, selectedCompany, updateClientFromCompany, clientDetails, setClientDetails, jobTitle, setJobTitle, validUntil, setValidUntil, money, subtotalMaterials, subtotalLabor, subtotalTravel, total }) {
+export default function DatosEmpresaStep({ companies, clientMode, setClientMode, selectedCompany, updateClientFromCompany, clientDetails, setClientDetails, jobTitle, setJobTitle, validUntil, setValidUntil, money, subtotalMaterials, subtotalLabor, subtotalTravel, total, onSaveDraft, saving, generatedQuote }) {
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Proyecto industrial / Cotización</p>
-        <h1 className="mt-1 text-2xl font-semibold text-on-surface">Datos de la Empresa Cliente</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">Ingresá la información legal y operativa del cliente para la correcta emisión de la cotización técnica y facturación posterior.</p>
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Proyecto industrial / Cotización</p>
+          <h1 className="mt-1 text-2xl font-semibold text-on-surface">Datos de la Empresa Cliente</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">Ingresá la información legal y operativa del cliente para la correcta emisión de la cotización técnica y facturación posterior.</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-start gap-1 md:items-end">
+          <Button onClick={onSaveDraft} disabled={saving} icon="save" variant="ghost">
+            {saving ? "Guardando..." : "Guardar y continuar más tarde"}
+          </Button>
+          {generatedQuote && <span className="text-[11px] font-semibold text-on-surface-variant">Guardado como {generatedQuote.number}</span>}
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
