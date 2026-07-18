@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Icon } from "./ui.jsx";
 
 const QUOTE_STEPS = [
@@ -16,22 +16,59 @@ const CONFIG_ITEMS = [
 ];
 
 export default function AppShell({ activeSection, configTab, onQuoteStep, quoteStep, onConfigTab, quoteNumber, quoteStatus, onGeneratePdf, children }) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  function handleQuoteStep(step) {
+    onQuoteStep(step);
+    setMobileNavOpen(false);
+  }
+
+  function handleConfigTab(tab) {
+    onConfigTab(tab);
+    setMobileNavOpen(false);
+  }
+
   return (
     <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 flex h-16 items-center border-b border-outline bg-surface-container-lowest px-6 md:px-8">
+      <header className="sticky top-0 z-50 flex h-16 items-center gap-3 border-b border-outline bg-surface-container-lowest px-4 md:px-8">
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="-ml-1 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container md:hidden"
+          aria-label="Abrir menú"
+        >
+          <Icon name="menu" />
+        </button>
         <span className="text-lg font-bold text-primary">Cotizador</span>
       </header>
 
       <div className="flex">
-        <aside className="sticky top-16 hidden h-[calc(100vh-64px)] w-64 shrink-0 flex-col border-r border-outline bg-surface-container-low p-4 md:flex">
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-64 flex-col overflow-y-auto border-r border-outline bg-surface-container-low p-4 transition-transform duration-200 md:sticky md:top-16 md:z-0 md:flex md:h-[calc(100vh-64px)] md:translate-x-0 ${
+            mobileNavOpen ? "flex translate-x-0" : "hidden -translate-x-full md:flex"
+          }`}
+        >
           <div className="mb-6 flex items-center gap-3 px-2">
             <div className="flex h-10 w-10 items-center justify-center rounded bg-primary text-white">
               <Icon name="architecture" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-primary">{quoteNumber || "Nuevo presupuesto"}</p>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Estado: {quoteStatus}</p>
             </div>
+            <button
+              onClick={() => setMobileNavOpen(false)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container md:hidden"
+              aria-label="Cerrar menú"
+            >
+              <Icon name="close" />
+            </button>
           </div>
           <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
             {QUOTE_STEPS.map((step) => {
@@ -39,7 +76,7 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
               return (
                 <button
                   key={step.key}
-                  onClick={() => onQuoteStep(step.key)}
+                  onClick={() => handleQuoteStep(step.key)}
                   className={`flex items-center gap-3 rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition-all active:scale-[0.98] ${
                     isActive ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
                   }`}
@@ -57,7 +94,7 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
                 return (
                   <button
                     key={item.key}
-                    onClick={() => onConfigTab(item.key)}
+                    onClick={() => handleConfigTab(item.key)}
                     className={`flex items-center gap-3 rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition-all active:scale-[0.98] ${
                       isActive ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
                     }`}
@@ -70,7 +107,7 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
             </div>
           </nav>
           <button
-            onClick={onGeneratePdf}
+            onClick={() => { onGeneratePdf(); setMobileNavOpen(false); }}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded bg-primary py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:brightness-110 active:scale-[0.98]"
           >
             <Icon name="picture_as_pdf" className="text-[18px]" />
