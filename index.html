@@ -51,8 +51,22 @@
         line-height: 1;
         vertical-align: middle;
       }
-      /* Splash: vive dentro de #root, React lo reemplaza al montar. Sin fuentes
-         externas ni icon-font (todavía no cargaron cuando esto se muestra). */
+      /* Splash: overlay fijo fuera de #root. main.jsx lo desmonta con fade
+         ~1s despues de montar React. Sin fuentes externas ni icon-font
+         (todavía no cargaron cuando esto se muestra). */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        transition: opacity 0.45s ease;
+      }
+      #splash.splash-exit {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash.splash-exit .splash-logo {
+        transform: scale(1.12);
+      }
       .splash {
         min-height: 100vh;
         display: flex;
@@ -72,6 +86,7 @@
         align-items: center;
         justify-content: center;
         box-shadow: 0 8px 24px rgba(234, 46, 0, 0.28);
+        transition: transform 0.45s ease;
       }
       .splash-title {
         margin: 0;
@@ -119,7 +134,8 @@
     </style>
   </head>
   <body class="bg-surface text-on-surface">
-    <div id="root">
+    <div id="root"></div>
+    <div id="splash">
       <div class="splash">
         <div class="splash-logo">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
