@@ -51,10 +51,90 @@
         line-height: 1;
         vertical-align: middle;
       }
+      /* Splash: vive dentro de #root, React lo reemplaza al montar. Sin fuentes
+         externas ni icon-font (todavía no cargaron cuando esto se muestra). */
+      .splash {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #F0E7D6;
+        animation: splash-in 0.4s ease-out;
+      }
+      .splash-logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 6px;
+        background: #ea2e00;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(234, 46, 0, 0.28);
+      }
+      .splash-title {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.24em;
+        color: #211a12;
+      }
+      .splash-sub {
+        margin: -12px 0 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #5c5347;
+      }
+      .splash-bar {
+        width: 160px;
+        height: 3px;
+        border-radius: 2px;
+        background: #d1c7b7;
+        overflow: hidden;
+      }
+      .splash-bar span {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 2px;
+        background: #ea2e00;
+        animation: splash-slide 1.1s ease-in-out infinite;
+      }
+      @keyframes splash-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(350%); }
+      }
+      @keyframes splash-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .splash, .splash-bar span { animation: none; }
+      }
     </style>
   </head>
   <body class="bg-surface text-on-surface">
-    <div id="root"></div>
+    <div id="root">
+      <div class="splash">
+        <div class="splash-logo">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <!-- compás de dibujo técnico -->
+            <circle cx="12" cy="4.5" r="1.7" />
+            <path d="M11 6.1 6 19.5" />
+            <path d="M13 6.1 18 19.5" />
+            <path d="M8.1 13.9a7 7 0 0 0 7.8 0" />
+          </svg>
+        </div>
+        <p class="splash-title">COTIZADOR</p>
+        <p class="splash-sub">Sistema de Cotización Técnica</p>
+        <div class="splash-bar"><span></span></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
