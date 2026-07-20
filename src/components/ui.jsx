@@ -18,7 +18,7 @@ export function Button({ children, onClick, variant = "primary", type = "button"
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded border px-3 text-xs font-bold uppercase tracking-wide transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100 ${styles[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded px-4 text-xs font-bold uppercase tracking-wide transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100 md:min-h-9 md:border md:px-3 ${styles[variant]} ${className}`}
     >
       {icon && <Icon name={icon} className="text-[16px]" />}
       {children}
@@ -38,7 +38,7 @@ export function Badge({ children, tone = "neutral" }) {
 
 export function Panel({ children, className = "", title, icon, action }) {
   return (
-    <section className={`rounded-lg border border-outline bg-surface-container-lowest ${className}`}>
+    <section className={`rounded-lg bg-surface-container-lowest shadow-[0_2px_8px_rgba(33,26,18,0.08)] md:border md:border-outline md:shadow-none ${className}`}>
       {title && (
         <div className="flex items-center justify-between gap-3 border-b border-outline px-6 py-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-on-surface">
@@ -63,7 +63,7 @@ export function Field({ label, children, hint }) {
   );
 }
 
-const controlClass = "min-h-10 w-full rounded border border-outline bg-surface px-3 text-sm font-medium normal-case tracking-normal text-on-surface outline-none transition placeholder:text-on-surface-variant/60 focus:border-primary focus:border-2";
+const controlClass = "min-h-11 w-full rounded border border-outline bg-surface px-3 text-base font-medium normal-case tracking-normal text-on-surface outline-none transition placeholder:text-on-surface-variant focus:border-primary focus:border-2 md:min-h-10 md:text-sm";
 
 export function TextInput(props) {
   return <input {...props} className={`${controlClass} ${props.className || ""}`} />;
@@ -105,7 +105,7 @@ export function StatCard({ label, value, tone = "primary" }) {
 export function IconButton({ icon, onClick, tone = "default", title }) {
   const toneClass = tone === "danger" ? "hover:text-error" : "hover:text-primary";
   return (
-    <button type="button" onClick={onClick} title={title} className={`rounded p-1.5 text-on-surface-variant transition-colors ${toneClass}`}>
+    <button type="button" onClick={onClick} title={title} className={`flex h-11 w-11 items-center justify-center rounded text-on-surface-variant transition-colors md:h-auto md:w-auto md:p-1.5 ${toneClass}`}>
       <Icon name={icon} className="text-[20px]" />
     </button>
   );

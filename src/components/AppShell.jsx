@@ -15,8 +15,17 @@ const CONFIG_ITEMS = [
   { key: "general", label: "General", icon: "tune" },
 ];
 
+const MOBILE_TABS = [
+  { key: "presupuestos", label: "Presupuesto", icon: "request_quote", kind: "quote" },
+  { key: "materiales", label: "Materiales", icon: "inventory_2", kind: "config" },
+  { key: "manodeobra", label: "Mano de obra", icon: "engineering", kind: "config" },
+  { key: "general", label: "Ajustes", icon: "settings", kind: "config" },
+];
+
 export default function AppShell({ activeSection, configTab, onQuoteStep, quoteStep, onConfigTab, quoteNumber, quoteStatus, onGeneratePdf, children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const stepIndex = Math.max(0, QUOTE_STEPS.findIndex((item) => item.key === quoteStep));
+  const currentStep = QUOTE_STEPS[stepIndex];
 
   function handleQuoteStep(step) {
     onQuoteStep(step);
@@ -28,17 +37,40 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
     setMobileNavOpen(false);
   }
 
+  function handleMobileTab(item) {
+    if (item.kind === "quote") handleQuoteStep(quoteStep || "datosEmpresa");
+    else handleConfigTab(item.key);
+  }
+
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-50 flex h-16 items-center gap-3 border-b border-outline bg-surface-container-lowest px-4 md:px-8">
+    <div className="min-h-screen bg-surface md:bg-surface">
+      <header className="sticky top-0 z-30 border-b border-outline bg-surface-container-lowest px-4 pt-[env(safe-area-inset-top)] md:z-50 md:flex md:h-16 md:items-center md:gap-3 md:px-8 md:pt-0">
+        <div className="flex h-14 items-center justify-between md:contents">
         <button
           onClick={() => setMobileNavOpen(true)}
-          className="-ml-1 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container md:hidden"
+          className="-ml-2 flex h-11 w-11 items-center justify-center rounded-full text-on-surface hover:bg-surface-container md:hidden"
           aria-label="Abrir menú"
         >
           <Icon name="menu" />
         </button>
-        <span className="text-lg font-bold text-primary">Cotizador</span>
+        <div className="min-w-0 md:contents">
+          <span className="block text-base font-bold tracking-tight text-on-surface md:text-lg md:text-primary">Cotizador</span>
+          {activeSection === "presupuestos" && <span className="block truncate text-xs text-on-surface-variant md:hidden">{currentStep.label}</span>}
+        </div>
+        <button onClick={onGeneratePdf} className="flex h-11 w-11 items-center justify-center rounded-full text-primary hover:bg-primary/10 md:hidden" aria-label="Generar PDF">
+          <Icon name="picture_as_pdf" />
+        </button>
+        </div>
+        {activeSection === "presupuestos" && (
+          <div className="flex h-10 items-center gap-3 border-t border-outline/70 md:hidden">
+            <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-white">{stepIndex + 1}/5</span>
+            <div className="flex flex-1 items-center gap-1.5" aria-label={`Paso ${stepIndex + 1} de 5`}>
+              {QUOTE_STEPS.map((item, index) => (
+                <span key={item.key} className={`h-1.5 flex-1 rounded-full ${index <= stepIndex ? "bg-primary" : "bg-outline"}`} />
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="flex">
@@ -115,12 +147,43 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
           </button>
         </aside>
 
-        <main className="min-w-0 flex-1 p-4 pb-16 md:p-8">
+        <main className="min-w-0 flex-1 px-4 pb-44 pt-5 md:p-8">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>
       </div>
 
-      <footer className="border-t-2 border-primary bg-inverse-surface px-6 py-4 md:px-8">
+      {activeSection === "presupuestos" && (
+        <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex gap-2 border-t border-outline bg-surface-container-lowest px-4 py-3 md:hidden">
+          {stepIndex > 0 && (
+            <button onClick={() => handleQuoteStep(QUOTE_STEPS[stepIndex - 1].key)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-outline text-on-surface" aria-label="Paso anterior">
+              <Icon name="arrow_back" />
+            </button>
+          )}
+          {stepIndex < QUOTE_STEPS.length - 1 ? (
+            <button onClick={() => handleQuoteStep(QUOTE_STEPS[stepIndex + 1].key)} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white active:brightness-90">
+              Siguiente <Icon name="arrow_forward" />
+            </button>
+          ) : (
+            <button onClick={onGeneratePdf} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-white active:brightness-90">
+              Generar PDF <Icon name="picture_as_pdf" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[calc(64px+env(safe-area-inset-bottom))] grid-cols-4 border-t border-outline bg-surface-container-lowest pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Navegación principal">
+        {MOBILE_TABS.map((item) => {
+          const selected = item.kind === "quote" ? activeSection === "presupuestos" : activeSection === "configuracion" && configTab === item.key;
+          return (
+            <button key={item.key} onClick={() => handleMobileTab(item)} className={`flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold ${selected ? "text-primary" : "text-on-surface-variant"}`} aria-current={selected ? "page" : undefined}>
+              <Icon name={item.icon} className={`text-[22px] ${selected ? "[font-variation-settings:'FILL'_1,'wght'_600,'GRAD'_0,'opsz'_20]" : ""}`} />
+              <span className="truncate">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <footer className="hidden border-t-2 border-primary bg-inverse-surface px-6 py-4 md:block md:px-8">
         <p className="text-xs font-semibold text-white/70">© {new Date().getFullYear()} Bizon Metalurgica. Sistema de Cotización Técnica.</p>
       </footer>
     </div>
