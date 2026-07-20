@@ -82,3 +82,16 @@ test("upsertQuoteRecord: id que no existe en la lista se agrega igual (defensivo
   assert.equal(record.total, 1);
   assert.deepEqual(quotes, [record]);
 });
+
+test("upsertQuoteRecord: ignora number y createdAt del patch al actualizar registro existente", () => {
+  const existing = { id: "q1", number: "P-0002", createdAt: "2026-07-01T00:00:00.000Z", updatedAt: "2026-07-01T00:00:00.000Z", total: 500 };
+  const deps = { now: "2026-07-19T12:30:45.000Z", makeId: () => "x", nextNumber: () => "P-9999" };
+  const patchWithDifferentNumberAndCreatedAt = { number: "P-9999", createdAt: "2026-07-15T00:00:00.000Z", total: 1000 };
+  const { quotes, record } = upsertQuoteRecord([existing], "q1", patchWithDifferentNumberAndCreatedAt, deps);
+  assert.equal(record.id, "q1");
+  assert.equal(record.number, "P-0002", "number debe ser preservado del registro original, no del patch");
+  assert.equal(record.createdAt, "2026-07-01T00:00:00.000Z", "createdAt debe ser preservado del registro original, no del patch");
+  assert.equal(record.updatedAt, "2026-07-19T12:30:45.000Z", "updatedAt debe ser actualizado al nuevo now");
+  assert.equal(record.total, 1000, "otros campos del patch deben aplicarse normalmente");
+  assert.deepEqual(quotes, [record]);
+});

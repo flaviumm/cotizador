@@ -25,7 +25,7 @@ export function upsertQuoteRecord(quotes, id, patch, { now, makeId, nextNumber }
     return { quotes: [...quotes, record], record };
   }
   const existing = quotes.find((item) => item.id === id) || {};
-  const record = { ...existing, ...patch, id, updatedAt: now };
+  const record = { ...existing, ...patch, id, number: existing.number, createdAt: existing.createdAt, updatedAt: now };
   const found = quotes.some((item) => item.id === id);
   const nextQuotes = found ? quotes.map((item) => (item.id === id ? record : item)) : [...quotes, record];
   return { quotes: nextQuotes, record };
