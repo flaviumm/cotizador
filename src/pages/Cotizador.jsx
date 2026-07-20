@@ -492,7 +492,13 @@ const Cotizador = forwardRef(function Cotizador(
         savingIdleTimerRef.current = null;
       }, 2000);
     }, 800);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (savingIdleTimerRef.current) {
+        clearTimeout(savingIdleTimerRef.current);
+        savingIdleTimerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientDetails, lineItems, jobTitle, validUntil]);
 
