@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import DatosEmpresaStep from "./steps/DatosEmpresaStep.jsx";
 import MaterialesStep from "./steps/MaterialesStep.jsx";
 import JornadasStep from "./steps/JornadasStep.jsx";
@@ -465,14 +465,20 @@ const Cotizador = forwardRef(function Cotizador(
     if (activeQuoteNumber && !quoteNumber) setQuoteNumber(activeQuoteNumber);
   }, [activeQuoteNumber, quoteNumber]);
 
+  const latestQuoteRefs = useRef({ activeQuoteId, activeQuoteNumber, onQuoteChange, quoteNumber });
+  useEffect(() => {
+    latestQuoteRefs.current = { activeQuoteId, activeQuoteNumber, onQuoteChange, quoteNumber };
+  });
+
   useEffect(() => {
     const draftPreview = { lineItems, clientDetails, service: jobTitle.trim() };
     if (!activeQuoteId && !hasQuoteContent(draftPreview)) return;
     onSavingStatusChange("pending");
     const timer = setTimeout(() => {
-      const draft = buildQuote(quoteNumber);
-      const saved = onQuoteChange(activeQuoteId, draft);
-      if (saved?.number && saved.number !== quoteNumber) setQuoteNumber(saved.number);
+      const { activeQuoteId: currentId, onQuoteChange: currentOnChange, quoteNumber: currentNumber } = latestQuoteRefs.current;
+      const draft = buildQuote(currentNumber);
+      const saved = currentOnChange(currentId, draft);
+      if (saved?.number && saved.number !== currentNumber) setQuoteNumber(saved.number);
       onSavingStatusChange("saved");
     }, 800);
     return () => clearTimeout(timer);
@@ -664,6 +670,21 @@ const Cotizador = forwardRef(function Cotizador(
       if (saved) {
         setGeneratedQuote(saved);
         if (openPdf) generateQuotePdf(saved, pdfWindow);
+      } else if (openPdf && pdfWindow && !pdfWindow.closed) {
+        pdfWindow.document.open();
+        pdfWindow.document.write(`
+          <!doctype html>
+          <html>
+            <head><title>Nada para generar</title></head>
+            <body style="margin:0;display:grid;min-height:100vh;place-items:center;background:#fff8f0;font-family:Arial,sans-serif;color:#7a5c00">
+              <div style="max-width:480px;padding:24px;border:1px solid #f0d9a0;border-radius:10px;background:white;text-align:center">
+                <h1 style="margin:0 0 8px;font-size:20px">Todavía no hay nada que generar</h1>
+                <p style="margin:0;color:#52525b">Cargá al menos un cliente o un ítem antes de generar el PDF.</p>
+              </div>
+            </body>
+          </html>
+        `);
+        pdfWindow.document.close();
       }
       return saved;
     } catch (error) {
