@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import DatosEmpresaStep from "./steps/DatosEmpresaStep.jsx";
 import MaterialesStep from "./steps/MaterialesStep.jsx";
 import JornadasStep from "./steps/JornadasStep.jsx";
@@ -6,16 +6,10 @@ import TrasladoStep, { VEHICLE_TYPES, FUEL_CONSUMPTION_L_PER_100KM } from "./ste
 import ResumenStep from "./steps/ResumenStep.jsx";
 import AnalisisPlanoAI from "../components/AnalisisPlanoAI.jsx";
 import { MATERIAL_GROUPS, materialGroup, resolveMaterialCategory, materialCategoryLabel } from "../lib/materialGroups.js";
+import { money } from "../lib/format.js";
+import { hasQuoteContent } from "../lib/quoteDrafts.js";
 
 // ---------- helpers (extraídos del ERP monolítico) ----------
-function money(value) {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-}
-
 function quoteLineTotal(line) {
   if (line.type === "title") return 0;
   return Number(line.quantity || 0) * Number(line.unitPrice || 0);
@@ -321,15 +315,20 @@ function generateQuotePdf(quote, targetWindow = null) {
 
 // ---------- Cotizador wizard (mismo componente del ERP; persistencia inyectada por props) ----------
 const Cotizador = forwardRef(function Cotizador(
-  { companies, setCompanies, quotes, setQuotes, persistRecord, getDocumentNumber, materials, laborRates, quoteParameters, step, setStep, lightboxImage, setLightboxImage },
+  {
+    companies, setCompanies, materials, laborRates, quoteParameters, step, setStep, lightboxImage, setLightboxImage,
+    initialQuote = null, activeQuoteId = null, activeQuoteNumber = null,
+    onQuoteChange = () => null, onDone = () => {}, onSavingStatusChange = () => {},
+  },
   ref
 ) {
   const defaultValidUntil = addDaysIso(quoteParameters.offerValidityDays || 7);
-  const [clientMode, setClientMode] = useState("existing");
-  const [selectedCompany, setSelectedCompany] = useState(companies[0]?.name || "");
-  const [clientDetails, setClientDetails] = useState({ name: companies[0]?.name || "", taxId: "", contact: companies[0]?.contact || "", phone: companies[0]?.phone || "", email: "", address: "" });
-  const [validUntil, setValidUntil] = useState(defaultValidUntil);
-  const [lineItems, setLineItems] = useState([]);
+  const [clientMode, setClientMode] = useState(() => (initialQuote ? "new" : "existing"));
+  const [selectedCompany, setSelectedCompany] = useState(() => (initialQuote ? "" : companies[0]?.name || ""));
+  const [clientDetails, setClientDetails] = useState(() => initialQuote?.clientDetails || { name: companies[0]?.name || "", taxId: "", contact: companies[0]?.contact || "", phone: companies[0]?.phone || "", email: "", address: "" });
+  const [validUntil, setValidUntil] = useState(() => initialQuote?.validUntil || defaultValidUntil);
+  const [lineItems, setLineItems] = useState(() => initialQuote?.lineItems || []);
+  const [quoteNumber, setQuoteNumber] = useState(() => initialQuote?.number || null);
   const [materialQuery, setMaterialQuery] = useState("");
   const [materialProvider, setMaterialProvider] = useState("");
   const [materialGroupFilter, setMaterialGroupFilter] = useState("");
@@ -339,7 +338,7 @@ const Cotizador = forwardRef(function Cotizador(
   const [materialFeedback, setMaterialFeedback] = useState(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialQuantity, setMaterialQuantity] = useState(1);
-  const [jobTitle, setJobTitle] = useState("");
+  const [jobTitle, setJobTitle] = useState(() => initialQuote?.jobTitle || "");
   const [laborAgreement, setLaborAgreement] = useState("");
   const [selectedLaborId, setSelectedLaborId] = useState(laborRates[0]?.id || "");
   const [laborHours, setLaborHours] = useState(1);
@@ -450,6 +449,7 @@ const Cotizador = forwardRef(function Cotizador(
     .filter((line) => line.type === "travel");
 
   useEffect(() => {
+    if (initialQuote) return;
     if (!selectedCompany && companies[0]?.name) {
       updateClientFromCompany(companies[0].name);
     }
@@ -461,6 +461,46 @@ const Cotizador = forwardRef(function Cotizador(
     const timer = setTimeout(() => setMaterialFeedback(null), 3000);
     return () => clearTimeout(timer);
   }, [materialFeedback]);
+
+  useEffect(() => {
+    if (activeQuoteNumber && !quoteNumber) setQuoteNumber(activeQuoteNumber);
+  }, [activeQuoteNumber, quoteNumber]);
+
+  const latestQuoteRefs = useRef({ activeQuoteId, activeQuoteNumber, onQuoteChange, quoteNumber });
+  useEffect(() => {
+    latestQuoteRefs.current = { activeQuoteId, activeQuoteNumber, onQuoteChange, quoteNumber };
+  });
+
+  const savingIdleTimerRef = useRef(null);
+
+  useEffect(() => {
+    const draftPreview = { lineItems, clientDetails, service: jobTitle.trim() };
+    if (!activeQuoteId && !hasQuoteContent(draftPreview)) return;
+    if (savingIdleTimerRef.current) {
+      clearTimeout(savingIdleTimerRef.current);
+      savingIdleTimerRef.current = null;
+    }
+    onSavingStatusChange("pending");
+    const timer = setTimeout(() => {
+      const { activeQuoteId: currentId, onQuoteChange: currentOnChange, quoteNumber: currentNumber } = latestQuoteRefs.current;
+      const draft = buildQuote(currentNumber);
+      const saved = currentOnChange(currentId, draft);
+      if (saved?.number && saved.number !== currentNumber) setQuoteNumber(saved.number);
+      onSavingStatusChange("saved");
+      savingIdleTimerRef.current = setTimeout(() => {
+        onSavingStatusChange("idle");
+        savingIdleTimerRef.current = null;
+      }, 2000);
+    }, 800);
+    return () => {
+      clearTimeout(timer);
+      if (savingIdleTimerRef.current) {
+        clearTimeout(savingIdleTimerRef.current);
+        savingIdleTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientDetails, lineItems, jobTitle, validUntil]);
 
   function selectMaterialGroup(value) {
     setMaterialGroupFilter(value);
@@ -604,6 +644,7 @@ const Cotizador = forwardRef(function Cotizador(
       number,
       client: clientDetails.name || selectedCompany || "Cliente sin nombre",
       service: jobTitle.trim() || normalizedLines.find((l) => l.type !== "title")?.detail || "Presupuesto",
+      jobTitle: jobTitle.trim(),
       subtotal,
       tax,
       total,
@@ -638,16 +679,31 @@ const Cotizador = forwardRef(function Cotizador(
           value: total,
         };
         setCompanies((items) => [...items, record]);
-        await persistRecord("companies", record);
       }
 
-      const number = await getDocumentNumber("quote", quotes, "P", 4);
-      const quote = buildQuote(number);
-      setQuotes((items) => [...items, quote]);
-      await persistRecord("quotes", quote);
-      setGeneratedQuote(quote);
-      if (openPdf) generateQuotePdf(quote, pdfWindow);
-      return quote;
+      const draft = buildQuote(quoteNumber);
+      const saved = onQuoteChange(activeQuoteId, draft);
+      if (saved?.number && saved.number !== quoteNumber) setQuoteNumber(saved.number);
+      if (saved) {
+        setGeneratedQuote(saved);
+        if (openPdf) generateQuotePdf(saved, pdfWindow);
+      } else if (openPdf && pdfWindow && !pdfWindow.closed) {
+        pdfWindow.document.open();
+        pdfWindow.document.write(`
+          <!doctype html>
+          <html>
+            <head><title>Nada para generar</title></head>
+            <body style="margin:0;display:grid;min-height:100vh;place-items:center;background:#fff8f0;font-family:Arial,sans-serif;color:#7a5c00">
+              <div style="max-width:480px;padding:24px;border:1px solid #f0d9a0;border-radius:10px;background:white;text-align:center">
+                <h1 style="margin:0 0 8px;font-size:20px">Todavía no hay nada que generar</h1>
+                <p style="margin:0;color:#52525b">Cargá al menos un cliente o un ítem antes de generar el PDF.</p>
+              </div>
+            </body>
+          </html>
+        `);
+        pdfWindow.document.close();
+      }
+      return saved;
     } catch (error) {
       if (pdfWindow && !pdfWindow.closed) {
         pdfWindow.document.open();
@@ -753,7 +809,7 @@ const Cotizador = forwardRef(function Cotizador(
       jobTitle={jobTitle} setJobTitle={setJobTitle}
       validUntil={validUntil} setValidUntil={setValidUntil}
       money={money} subtotalMaterials={subtotalMaterials} subtotalLabor={subtotalLabor} subtotalTravel={subtotalTravel} total={total}
-      onSaveDraft={() => saveQuote({ openPdf: false })} saving={saving} generatedQuote={generatedQuote}
+      onSaveDraft={async () => { await saveQuote({ openPdf: false }); onDone(); }} saving={saving} generatedQuote={generatedQuote}
     />
   );
 });

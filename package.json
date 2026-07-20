@@ -8,7 +8,7 @@
     "dev:api": "node scripts/dev-api.mjs",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/lib/catalogMatch.test.js api/_lib.test.js"
+    "test": "node --test src/lib/catalogMatch.test.js src/lib/format.test.js src/lib/quoteDrafts.test.js api/_lib.test.js"
   },
   "dependencies": {
     "react": "^19.2.0",

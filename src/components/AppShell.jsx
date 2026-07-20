@@ -16,13 +16,16 @@ const CONFIG_ITEMS = [
 ];
 
 const MOBILE_TABS = [
-  { key: "presupuestos", label: "Presupuesto", icon: "request_quote", kind: "quote" },
+  { key: "presupuestos", label: "Inicio", icon: "home", kind: "quote" },
   { key: "materiales", label: "Materiales", icon: "inventory_2", kind: "config" },
   { key: "manodeobra", label: "Mano de obra", icon: "engineering", kind: "config" },
   { key: "general", label: "Ajustes", icon: "settings", kind: "config" },
 ];
 
-export default function AppShell({ activeSection, configTab, onQuoteStep, quoteStep, onConfigTab, quoteNumber, quoteStatus, onGeneratePdf, children }) {
+export default function AppShell({
+  activeSection, configTab, onQuoteStep, quoteStep, onConfigTab, quoteNumber, quoteStatus, onGeneratePdf, children,
+  quoteView = "wizard", onGoHome = () => {}, autosaveStatus = "idle",
+}) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const stepIndex = Math.max(0, QUOTE_STEPS.findIndex((item) => item.key === quoteStep));
   const currentStep = QUOTE_STEPS[stepIndex];
@@ -37,8 +40,13 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
     setMobileNavOpen(false);
   }
 
+  function handleGoHome() {
+    onGoHome();
+    setMobileNavOpen(false);
+  }
+
   function handleMobileTab(item) {
-    if (item.kind === "quote") handleQuoteStep(quoteStep || "datosEmpresa");
+    if (item.kind === "quote") handleGoHome();
     else handleConfigTab(item.key);
   }
 
@@ -55,13 +63,19 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
         </button>
         <div className="min-w-0 md:contents">
           <span className="block text-base font-bold tracking-tight text-on-surface md:text-lg md:text-primary">Cotizador</span>
-          {activeSection === "presupuestos" && <span className="block truncate text-xs text-on-surface-variant md:hidden">{currentStep.label}</span>}
+          {activeSection === "presupuestos" && quoteView === "wizard" && (
+            <span className="block truncate text-xs text-on-surface-variant md:hidden">
+              {currentStep.label}
+              {autosaveStatus === "pending" && " · Guardando…"}
+              {autosaveStatus === "saved" && " · Guardado"}
+            </span>
+          )}
         </div>
         <button onClick={onGeneratePdf} className="flex h-11 w-11 items-center justify-center rounded-full text-primary hover:bg-primary/10 md:hidden" aria-label="Generar PDF">
           <Icon name="picture_as_pdf" />
         </button>
         </div>
-        {activeSection === "presupuestos" && (
+        {activeSection === "presupuestos" && quoteView === "wizard" && (
           <div className="flex h-10 items-center gap-3 border-t border-outline/70 md:hidden">
             <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-white">{stepIndex + 1}/5</span>
             <div className="flex flex-1 items-center gap-1.5" aria-label={`Paso ${stepIndex + 1} de 5`}>
@@ -103,6 +117,15 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
             </button>
           </div>
           <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
+            <button
+              onClick={handleGoHome}
+              className={`flex items-center gap-3 rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wide transition-all active:scale-[0.98] ${
+                activeSection === "presupuestos" && quoteView === "home" ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
+              }`}
+            >
+              <Icon name="home" className="text-[18px]" />
+              Inicio
+            </button>
             {QUOTE_STEPS.map((step) => {
               const isActive = activeSection === "presupuestos" && quoteStep === step.key;
               return (
@@ -152,7 +175,7 @@ export default function AppShell({ activeSection, configTab, onQuoteStep, quoteS
         </main>
       </div>
 
-      {activeSection === "presupuestos" && (
+      {activeSection === "presupuestos" && quoteView === "wizard" && (
         <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex gap-2 border-t border-outline bg-surface-container-lowest px-4 py-3 md:hidden">
           {stepIndex > 0 && (
             <button onClick={() => handleQuoteStep(QUOTE_STEPS[stepIndex - 1].key)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-outline text-on-surface" aria-label="Paso anterior">
