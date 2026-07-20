@@ -449,6 +449,7 @@ const Cotizador = forwardRef(function Cotizador(
     .filter((line) => line.type === "travel");
 
   useEffect(() => {
+    if (initialQuote) return;
     if (!selectedCompany && companies[0]?.name) {
       updateClientFromCompany(companies[0].name);
     }
@@ -470,9 +471,15 @@ const Cotizador = forwardRef(function Cotizador(
     latestQuoteRefs.current = { activeQuoteId, activeQuoteNumber, onQuoteChange, quoteNumber };
   });
 
+  const savingIdleTimerRef = useRef(null);
+
   useEffect(() => {
     const draftPreview = { lineItems, clientDetails, service: jobTitle.trim() };
     if (!activeQuoteId && !hasQuoteContent(draftPreview)) return;
+    if (savingIdleTimerRef.current) {
+      clearTimeout(savingIdleTimerRef.current);
+      savingIdleTimerRef.current = null;
+    }
     onSavingStatusChange("pending");
     const timer = setTimeout(() => {
       const { activeQuoteId: currentId, onQuoteChange: currentOnChange, quoteNumber: currentNumber } = latestQuoteRefs.current;
@@ -480,6 +487,10 @@ const Cotizador = forwardRef(function Cotizador(
       const saved = currentOnChange(currentId, draft);
       if (saved?.number && saved.number !== currentNumber) setQuoteNumber(saved.number);
       onSavingStatusChange("saved");
+      savingIdleTimerRef.current = setTimeout(() => {
+        onSavingStatusChange("idle");
+        savingIdleTimerRef.current = null;
+      }, 2000);
     }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
