@@ -7,6 +7,7 @@ import ResumenStep from "./steps/ResumenStep.jsx";
 import AnalisisPlanoAI from "../components/AnalisisPlanoAI.jsx";
 import { MATERIAL_GROUPS, materialGroup, resolveMaterialCategory, materialCategoryLabel } from "../lib/materialGroups.js";
 import { money } from "../lib/format.js";
+import { hasQuoteContent } from "../lib/quoteDrafts.js";
 
 // ---------- helpers (extraídos del ERP monolítico) ----------
 function quoteLineTotal(line) {
@@ -314,15 +315,20 @@ function generateQuotePdf(quote, targetWindow = null) {
 
 // ---------- Cotizador wizard (mismo componente del ERP; persistencia inyectada por props) ----------
 const Cotizador = forwardRef(function Cotizador(
-  { companies, setCompanies, quotes, setQuotes, persistRecord, getDocumentNumber, materials, laborRates, quoteParameters, step, setStep, lightboxImage, setLightboxImage },
+  {
+    companies, setCompanies, materials, laborRates, quoteParameters, step, setStep, lightboxImage, setLightboxImage,
+    initialQuote = null, activeQuoteId = null, activeQuoteNumber = null,
+    onQuoteChange = () => null, onDone = () => {}, onSavingStatusChange = () => {},
+  },
   ref
 ) {
   const defaultValidUntil = addDaysIso(quoteParameters.offerValidityDays || 7);
-  const [clientMode, setClientMode] = useState("existing");
-  const [selectedCompany, setSelectedCompany] = useState(companies[0]?.name || "");
-  const [clientDetails, setClientDetails] = useState({ name: companies[0]?.name || "", taxId: "", contact: companies[0]?.contact || "", phone: companies[0]?.phone || "", email: "", address: "" });
-  const [validUntil, setValidUntil] = useState(defaultValidUntil);
-  const [lineItems, setLineItems] = useState([]);
+  const [clientMode, setClientMode] = useState(() => (initialQuote ? "new" : "existing"));
+  const [selectedCompany, setSelectedCompany] = useState(() => (initialQuote ? "" : companies[0]?.name || ""));
+  const [clientDetails, setClientDetails] = useState(() => initialQuote?.clientDetails || { name: companies[0]?.name || "", taxId: "", contact: companies[0]?.contact || "", phone: companies[0]?.phone || "", email: "", address: "" });
+  const [validUntil, setValidUntil] = useState(() => initialQuote?.validUntil || defaultValidUntil);
+  const [lineItems, setLineItems] = useState(() => initialQuote?.lineItems || []);
+  const [quoteNumber, setQuoteNumber] = useState(() => initialQuote?.number || null);
   const [materialQuery, setMaterialQuery] = useState("");
   const [materialProvider, setMaterialProvider] = useState("");
   const [materialGroupFilter, setMaterialGroupFilter] = useState("");
@@ -332,7 +338,7 @@ const Cotizador = forwardRef(function Cotizador(
   const [materialFeedback, setMaterialFeedback] = useState(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
   const [materialQuantity, setMaterialQuantity] = useState(1);
-  const [jobTitle, setJobTitle] = useState("");
+  const [jobTitle, setJobTitle] = useState(() => initialQuote?.jobTitle || "");
   const [laborAgreement, setLaborAgreement] = useState("");
   const [selectedLaborId, setSelectedLaborId] = useState(laborRates[0]?.id || "");
   const [laborHours, setLaborHours] = useState(1);
@@ -454,6 +460,24 @@ const Cotizador = forwardRef(function Cotizador(
     const timer = setTimeout(() => setMaterialFeedback(null), 3000);
     return () => clearTimeout(timer);
   }, [materialFeedback]);
+
+  useEffect(() => {
+    if (activeQuoteNumber && !quoteNumber) setQuoteNumber(activeQuoteNumber);
+  }, [activeQuoteNumber, quoteNumber]);
+
+  useEffect(() => {
+    const draftPreview = { lineItems, clientDetails, service: jobTitle.trim() };
+    if (!activeQuoteId && !hasQuoteContent(draftPreview)) return;
+    onSavingStatusChange("pending");
+    const timer = setTimeout(() => {
+      const draft = buildQuote(quoteNumber);
+      const saved = onQuoteChange(activeQuoteId, draft);
+      if (saved?.number && saved.number !== quoteNumber) setQuoteNumber(saved.number);
+      onSavingStatusChange("saved");
+    }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientDetails, lineItems, jobTitle, validUntil]);
 
   function selectMaterialGroup(value) {
     setMaterialGroupFilter(value);
@@ -597,6 +621,7 @@ const Cotizador = forwardRef(function Cotizador(
       number,
       client: clientDetails.name || selectedCompany || "Cliente sin nombre",
       service: jobTitle.trim() || normalizedLines.find((l) => l.type !== "title")?.detail || "Presupuesto",
+      jobTitle: jobTitle.trim(),
       subtotal,
       tax,
       total,
@@ -631,16 +656,16 @@ const Cotizador = forwardRef(function Cotizador(
           value: total,
         };
         setCompanies((items) => [...items, record]);
-        await persistRecord("companies", record);
       }
 
-      const number = await getDocumentNumber("quote", quotes, "P", 4);
-      const quote = buildQuote(number);
-      setQuotes((items) => [...items, quote]);
-      await persistRecord("quotes", quote);
-      setGeneratedQuote(quote);
-      if (openPdf) generateQuotePdf(quote, pdfWindow);
-      return quote;
+      const draft = buildQuote(quoteNumber);
+      const saved = onQuoteChange(activeQuoteId, draft);
+      if (saved?.number && saved.number !== quoteNumber) setQuoteNumber(saved.number);
+      if (saved) {
+        setGeneratedQuote(saved);
+        if (openPdf) generateQuotePdf(saved, pdfWindow);
+      }
+      return saved;
     } catch (error) {
       if (pdfWindow && !pdfWindow.closed) {
         pdfWindow.document.open();
@@ -746,7 +771,7 @@ const Cotizador = forwardRef(function Cotizador(
       jobTitle={jobTitle} setJobTitle={setJobTitle}
       validUntil={validUntil} setValidUntil={setValidUntil}
       money={money} subtotalMaterials={subtotalMaterials} subtotalLabor={subtotalLabor} subtotalTravel={subtotalTravel} total={total}
-      onSaveDraft={() => saveQuote({ openPdf: false })} saving={saving} generatedQuote={generatedQuote}
+      onSaveDraft={async () => { await saveQuote({ openPdf: false }); onDone(); }} saving={saving} generatedQuote={generatedQuote}
     />
   );
 });

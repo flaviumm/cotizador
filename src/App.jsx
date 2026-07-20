@@ -3,8 +3,11 @@ import Cotizador from "./pages/Cotizador.jsx";
 import Materiales from "./pages/Materiales.jsx";
 import ManoDeObra from "./pages/ManoDeObra.jsx";
 import Configuracion from "./pages/Configuracion.jsx";
+import Inicio from "./pages/Inicio.jsx";
+import PresupuestosList from "./pages/PresupuestosList.jsx";
 import AppShell from "./components/AppShell.jsx";
 import { laborRates as defaultLaborRates, materialPriceCatalog as defaultMaterials, quoteParameters as defaultQuoteParameters } from "./pricingData.js";
+import { upsertQuoteRecord, makeQuoteId } from "./lib/quoteDrafts.js";
 
 // Persistencia local: reemplaza la capa Supabase del ERP.
 function loadLocal(key, fallback) {
@@ -76,6 +79,10 @@ export default function App() {
   const [activeSection, setActiveSection] = useState("presupuestos");
   const [configTab, setConfigTab] = useState("materiales");
   const [quoteStep, setQuoteStep] = useState("datosEmpresa");
+  const [quoteView, setQuoteView] = useState("home"); // "home" | "wizard" | "list"
+  const [activeQuoteId, setActiveQuoteId] = useState(null);
+  const [mountKey, setMountKey] = useState(0);
+  const [autosaveStatus, setAutosaveStatus] = useState("idle"); // "idle" | "pending" | "saved"
   const [lightboxImage, setLightboxImage] = useState(null);
   const cotizadorRef = useRef(null);
 
@@ -85,9 +92,38 @@ export default function App() {
   useEffect(() => { saveLocal("cotizador.laborRates", laborRates); }, [laborRates]);
   useEffect(() => { saveLocal("cotizador.quoteParameters", quoteParameters); }, [quoteParameters]);
 
-  // El estado ya se persiste por efecto; persistRecord solo cumple el contrato async del componente.
-  const persistRecord = async () => {};
-  const getDocumentNumber = async (_type, items, prefix, padding) => nextLocalNumber(items, prefix, padding);
+  const activeQuote = quotes.find((quote) => quote.id === activeQuoteId) || null;
+
+  function startNewQuote() {
+    setActiveQuoteId(null);
+    setMountKey((key) => key + 1);
+    setQuoteStep("datosEmpresa");
+    setQuoteView("wizard");
+  }
+
+  function openQuote(id) {
+    setActiveQuoteId(id);
+    setMountKey((key) => key + 1);
+    setQuoteStep("datosEmpresa");
+    setQuoteView("wizard");
+  }
+
+  function goHome() {
+    setQuoteView("home");
+  }
+
+  function upsertQuote(id, patch) {
+    const { quotes: nextQuotes, record } = upsertQuoteRecord(quotes, id, patch, {
+      now: new Date().toISOString(),
+      makeId: makeQuoteId,
+      nextNumber: (items) => nextLocalNumber(items, "P", 4),
+    });
+    if (record) {
+      setQuotes(nextQuotes);
+      if (record.id !== id) setActiveQuoteId(record.id);
+    }
+    return record;
+  }
 
   return (
     <AppShell
@@ -95,23 +131,30 @@ export default function App() {
       configTab={configTab}
       onConfigTab={(tab) => { setConfigTab(tab); setActiveSection("configuracion"); }}
       quoteStep={quoteStep}
-      onQuoteStep={(step) => { setQuoteStep(step); setActiveSection("presupuestos"); }}
-      quoteNumber="Nuevo presupuesto"
-      quoteStatus="En borrador"
+      onQuoteStep={(step) => { setQuoteStep(step); setActiveSection("presupuestos"); setQuoteView("wizard"); }}
+      quoteView={quoteView}
+      onGoHome={() => { setActiveSection("presupuestos"); goHome(); }}
+      autosaveStatus={autosaveStatus}
+      quoteNumber={activeQuote?.number || "Nuevo presupuesto"}
+      quoteStatus={activeQuote?.status || "En borrador"}
       onGeneratePdf={() => cotizadorRef.current?.generatePdf()}
     >
       {activeSection === "configuracion" && configTab === "materiales" && <Materiales materials={materials} setMaterials={setMaterials} />}
       {activeSection === "configuracion" && configTab === "manodeobra" && <ManoDeObra laborRates={laborRates} setLaborRates={setLaborRates} />}
       {activeSection === "configuracion" && configTab === "general" && <Configuracion quoteParameters={quoteParameters} setQuoteParameters={setQuoteParameters} />}
-      <div style={{ display: activeSection === "presupuestos" ? "block" : "none" }}>
+
+      {activeSection === "presupuestos" && quoteView === "home" && (
+        <Inicio quotes={quotes} onNewQuote={startNewQuote} onViewList={() => setQuoteView("list")} onContinueDraft={openQuote} />
+      )}
+      {activeSection === "presupuestos" && quoteView === "list" && (
+        <PresupuestosList quotes={quotes} onOpenQuote={openQuote} onNewQuote={startNewQuote} />
+      )}
+      <div style={{ display: activeSection === "presupuestos" && quoteView === "wizard" ? "block" : "none" }}>
         <Cotizador
+          key={mountKey}
           ref={cotizadorRef}
           companies={companies}
           setCompanies={setCompanies}
-          quotes={quotes}
-          setQuotes={setQuotes}
-          persistRecord={persistRecord}
-          getDocumentNumber={getDocumentNumber}
           materials={materials}
           laborRates={laborRates}
           quoteParameters={quoteParameters}
@@ -119,6 +162,12 @@ export default function App() {
           setStep={setQuoteStep}
           lightboxImage={lightboxImage}
           setLightboxImage={setLightboxImage}
+          initialQuote={activeQuote}
+          activeQuoteId={activeQuoteId}
+          activeQuoteNumber={activeQuote?.number || null}
+          onQuoteChange={upsertQuote}
+          onDone={goHome}
+          onSavingStatusChange={setAutosaveStatus}
         />
       </div>
 
