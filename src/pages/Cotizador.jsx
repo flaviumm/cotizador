@@ -6,16 +6,9 @@ import TrasladoStep, { VEHICLE_TYPES, FUEL_CONSUMPTION_L_PER_100KM } from "./ste
 import ResumenStep from "./steps/ResumenStep.jsx";
 import AnalisisPlanoAI from "../components/AnalisisPlanoAI.jsx";
 import { MATERIAL_GROUPS, materialGroup, resolveMaterialCategory, materialCategoryLabel } from "../lib/materialGroups.js";
+import { money } from "../lib/format.js";
 
 // ---------- helpers (extraídos del ERP monolítico) ----------
-function money(value) {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-}
-
 function quoteLineTotal(line) {
   if (line.type === "title") return 0;
   return Number(line.quantity || 0) * Number(line.unitPrice || 0);
